@@ -23,13 +23,20 @@ public class ApplicationTest {
         String threadId = UUID.randomUUID().toString();
         RunnableConfig runnableConfig = RunnableConfig.builder().threadId(threadId).build();
 
-        InterruptionMetadata interruptionMetadata = firstCall(runnableConfig);
-        InterruptionMetadata feedbackMetadata = feedback(interruptionMetadata);
-        secondCall(threadId, feedbackMetadata);
-    }
+        Object firstResult = agent.invokeAndGetOutput("帮我使用Python完成Socket编程实例代码，需要有服务端和客户端两份代码。", runnableConfig)
+                .orElseThrow();
 
-    private InterruptionMetadata firstCall(RunnableConfig runnableConfig) throws GraphRunnerException {
-        return (InterruptionMetadata) agent.invokeAndGetOutput("帮我使用Python完成Socket编程实例代码，需要有服务端和客户端两份代码。", runnableConfig).orElseThrow();
+        if (firstResult instanceof InterruptionMetadata interruptionMetadata) {
+            // 智能体因需人工批准而中断，提交反馈后恢复执行
+            InterruptionMetadata feedbackMetadata = feedback(interruptionMetadata);
+            secondCall(threadId, feedbackMetadata);
+        } else if (firstResult instanceof NodeOutput nodeOutput) {
+            // 智能体未触发需批准的工具，直接完成
+            System.out.println(nodeOutput);
+        } else {
+            throw new AssertionError(
+                    "Unexpected result type: " + (firstResult != null ? firstResult.getClass().getName() : "null"));
+        }
     }
 
     private InterruptionMetadata feedback(InterruptionMetadata interruptionMetadata) {

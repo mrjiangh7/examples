@@ -219,6 +219,70 @@
     let currentThreadId = generateThreadId();
     updateThreadIdDisplay();
 
+    /** 根据 /invoke 或 /feedback 返回的 InvokeResponse 更新页面（含工具批准后的最终回复） */
+    function renderInvokeResponse(data) {
+        document.getElementById('responseSection').style.display = 'block';
+        const responseArea = document.getElementById('responseArea');
+        const items = (data.toolFeedbacks && data.toolFeedbacks.length > 0) ? data.toolFeedbacks : [];
+
+        if (data.requiresHumanFeedback && items.length > 0) {
+            let resp = '';
+            for (let i = 0; i < items.length; i++) {
+                resp += `ToolName: ${items[i].name} \r\n ToolArguments: \r\n ${items[i].arguments} \r\n\r\n`;
+            }
+            addHistoryEntry('response', resp);
+            responseArea.textContent = resp;
+            document.getElementById('feedbackSection').style.display = 'block';
+            const feedbackItemsContainer = document.getElementById('feedbackItems');
+            feedbackItemsContainer.innerHTML = '';
+            items.forEach((item, index) => {
+                const feedbackItem = document.createElement('div');
+                feedbackItem.className = 'feedback-item';
+                feedbackItem.innerHTML = `
+                        <div class="feedback-header">
+                            <div>
+                                <i class="fas fa-toolbox tool-icon"></i>
+                                <strong>操作 ${index + 1}</strong>
+                            </div>
+                            <div class="feedback-actions">
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="feedback${index}" id="approve${index}" value="approve" checked>
+                                    <label class="form-check-label" for="approve${index}">批准</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="feedback${index}" id="reject${index}" value="reject">
+                                    <label class="form-check-label" for="reject${index}">拒绝</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="feedback-description" id="description${index}" style="display: none;">
+                            <label for="rejectReason${index}" class="form-label">拒绝原因</label>
+                            <textarea class="form-control" id="rejectReason${index}" rows="2" placeholder="请输入拒绝原因..."></textarea>
+                        </div>
+                    `;
+                feedbackItemsContainer.appendChild(feedbackItem);
+                const rejectRadio = document.getElementById(`reject${index}`);
+                const descriptionDiv = document.getElementById(`description${index}`);
+                rejectRadio.addEventListener('change', function() {
+                    if (this.checked) {
+                        descriptionDiv.style.display = 'block';
+                    }
+                });
+                const approveRadio = document.getElementById(`approve${index}`);
+                approveRadio.addEventListener('change', function() {
+                    if (this.checked) {
+                        descriptionDiv.style.display = 'none';
+                    }
+                });
+            });
+        } else {
+            const msg = data.assistantMessage != null ? data.assistantMessage : '';
+            addHistoryEntry('response', msg);
+            responseArea.textContent = msg;
+            document.getElementById('feedbackSection').style.display = 'none';
+        }
+    }
+
     // 生成新线程ID
     document.getElementById('generateThreadId').addEventListener('click', function() {
         currentThreadId = generateThreadId();
@@ -255,75 +319,7 @@
                 return response.json();
             })
             .then(data => {
-                // 显示响应区域
-                document.getElementById('responseSection').style.display = 'block';
-
-                // 记录响应历史
-                let resp = ""
-                for(let i = 0; i < data.length; i++) {
-                    resp += `ToolName: ${data[i].name} \r\n ToolArguments: \r\n ${data[i].arguments} \r\n\r\n`
-                }
-                addHistoryEntry('response', resp);
-
-                // 显示响应内容
-                const responseArea = document.getElementById('responseArea');
-                responseArea.textContent = resp;
-
-                // 检查是否需要反馈
-                if (data && data.length > 0) {
-                    // 显示反馈区域
-                    document.getElementById('feedbackSection').style.display = 'block';
-
-                    // 生成反馈项
-                    const feedbackItemsContainer = document.getElementById('feedbackItems');
-                    feedbackItemsContainer.innerHTML = '';
-
-                    data.forEach((item, index) => {
-                        const feedbackItem = document.createElement('div');
-                        feedbackItem.className = 'feedback-item';
-                        feedbackItem.innerHTML = `
-                                <div class="feedback-header">
-                                    <div>
-                                        <i class="fas fa-toolbox tool-icon"></i>
-                                        <strong>操作 ${index + 1}</strong>
-                                    </div>
-                                    <div class="feedback-actions">
-                                        <div class="form-check form-check-inline">
-                                            <input class="form-check-input" type="radio" name="feedback${index}" id="approve${index}" value="approve" checked>
-                                            <label class="form-check-label" for="approve${index}">批准</label>
-                                        </div>
-                                        <div class="form-check form-check-inline">
-                                            <input class="form-check-input" type="radio" name="feedback${index}" id="reject${index}" value="reject">
-                                            <label class="form-check-label" for="reject${index}">拒绝</label>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="feedback-description" id="description${index}" style="display: none;">
-                                    <label for="rejectReason${index}" class="form-label">拒绝原因</label>
-                                    <textarea class="form-control" id="rejectReason${index}" rows="2" placeholder="请输入拒绝原因..."></textarea>
-                                </div>
-                            `;
-
-                        feedbackItemsContainer.appendChild(feedbackItem);
-
-                        // 添加事件监听器，显示/隐藏拒绝原因输入框
-                        const rejectRadio = document.getElementById(`reject${index}`);
-                        const descriptionDiv = document.getElementById(`description${index}`);
-
-                        rejectRadio.addEventListener('change', function() {
-                            if (this.checked) {
-                                descriptionDiv.style.display = 'block';
-                            }
-                        });
-
-                        const approveRadio = document.getElementById(`approve${index}`);
-                        approveRadio.addEventListener('change', function() {
-                            if (this.checked) {
-                                descriptionDiv.style.display = 'none';
-                            }
-                        });
-                    });
-                }
+                renderInvokeResponse(data);
             })
             .catch(error => {
                 console.error('错误:', error);
@@ -368,20 +364,20 @@
             },
             body: JSON.stringify(feedbacks)
         })
-            .then(response => {
+            .then(async response => {
+                const text = await response.text();
                 if (!response.ok) {
-                    throw new Error('网络响应不正常');
+                    throw new Error(text || '网络响应不正常');
                 }
-                return response.text();
+                try {
+                    return JSON.parse(text);
+                } catch (e) {
+                    throw new Error('服务器返回非 JSON: ' + text);
+                }
             })
-            .then(result => {
-                // 记录反馈历史
+            .then(data => {
                 addHistoryEntry('feedback', JSON.stringify(feedbacks));
-
-                alert('反馈提交成功: ' + result);
-
-                // 隐藏反馈区域
-                document.getElementById('feedbackSection').style.display = 'none';
+                renderInvokeResponse(data);
             })
             .catch(error => {
                 console.error('错误:', error);

@@ -2,3 +2,11 @@ spring:
   ai:
     dashscope:
       api-key: ${AI_DASHSCOPE_API_KEY}
+      base-url: https://dashscope.aliyuncs.com
+      chat:
+        options:
+          # 默认用纯文本模型，避免 qwen3.5-plus 等要求的 incremental_output 仅流式生效导致报错
+          # 若要用多模态 qwen3.5-plus，请启用 app.agent.multimodal 并走 /invoke/stream 流式接口
+          model: qwen-turbo
+# 多模态时设为 true，并配置 MultimodalConfiguration 的 model/completions-path
+# app.agent.multimodal: false
